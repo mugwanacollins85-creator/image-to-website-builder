@@ -14,16 +14,278 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      booking_events: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          note: string | null
+          rider_lat: number | null
+          rider_lng: number | null
+          status: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          rider_lat?: number | null
+          rider_lng?: number | null
+          status: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          rider_lat?: number | null
+          rider_lng?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          base_price: number
+          created_at: string
+          customer_id: string | null
+          delivered_at: string | null
+          distance_km: number
+          distance_price: number
+          dropoff_address: string
+          dropoff_contact_name: string | null
+          dropoff_contact_phone: string | null
+          dropoff_lat: number | null
+          dropoff_lng: number | null
+          fragile: boolean
+          id: string
+          otp: string | null
+          package_description: string | null
+          package_weight_kg: number | null
+          payment_method: string
+          payment_status: string
+          pickup_address: string
+          pickup_contact_name: string | null
+          pickup_contact_phone: string | null
+          pickup_lat: number | null
+          pickup_lng: number | null
+          proof_photo_url: string | null
+          rider_id: string | null
+          service_type: string
+          special_instructions: string | null
+          status: string
+          total_price: number
+          tracking_number: string
+          updated_at: string
+          urgency: string
+          urgency_multiplier: number
+          vehicle_type: string
+        }
+        Insert: {
+          base_price?: number
+          created_at?: string
+          customer_id?: string | null
+          delivered_at?: string | null
+          distance_km?: number
+          distance_price?: number
+          dropoff_address: string
+          dropoff_contact_name?: string | null
+          dropoff_contact_phone?: string | null
+          dropoff_lat?: number | null
+          dropoff_lng?: number | null
+          fragile?: boolean
+          id?: string
+          otp?: string | null
+          package_description?: string | null
+          package_weight_kg?: number | null
+          payment_method?: string
+          payment_status?: string
+          pickup_address: string
+          pickup_contact_name?: string | null
+          pickup_contact_phone?: string | null
+          pickup_lat?: number | null
+          pickup_lng?: number | null
+          proof_photo_url?: string | null
+          rider_id?: string | null
+          service_type: string
+          special_instructions?: string | null
+          status?: string
+          total_price?: number
+          tracking_number: string
+          updated_at?: string
+          urgency?: string
+          urgency_multiplier?: number
+          vehicle_type: string
+        }
+        Update: {
+          base_price?: number
+          created_at?: string
+          customer_id?: string | null
+          delivered_at?: string | null
+          distance_km?: number
+          distance_price?: number
+          dropoff_address?: string
+          dropoff_contact_name?: string | null
+          dropoff_contact_phone?: string | null
+          dropoff_lat?: number | null
+          dropoff_lng?: number | null
+          fragile?: boolean
+          id?: string
+          otp?: string | null
+          package_description?: string | null
+          package_weight_kg?: number | null
+          payment_method?: string
+          payment_status?: string
+          pickup_address?: string
+          pickup_contact_name?: string | null
+          pickup_contact_phone?: string | null
+          pickup_lat?: number | null
+          pickup_lng?: number | null
+          proof_photo_url?: string | null
+          rider_id?: string | null
+          service_type?: string
+          special_instructions?: string | null
+          status?: string
+          total_price?: number
+          tracking_number?: string
+          updated_at?: string
+          urgency?: string
+          urgency_multiplier?: number
+          vehicle_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "riders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      riders: {
+        Row: {
+          created_at: string
+          current_lat: number | null
+          current_lng: number | null
+          full_name: string
+          id: string
+          phone: string
+          plate_number: string
+          rating: number | null
+          status: string
+          total_deliveries: number
+          updated_at: string
+          user_id: string | null
+          vehicle_type: string
+        }
+        Insert: {
+          created_at?: string
+          current_lat?: number | null
+          current_lng?: number | null
+          full_name: string
+          id?: string
+          phone: string
+          plate_number: string
+          rating?: number | null
+          status?: string
+          total_deliveries?: number
+          updated_at?: string
+          user_id?: string | null
+          vehicle_type: string
+        }
+        Update: {
+          created_at?: string
+          current_lat?: number | null
+          current_lng?: number | null
+          full_name?: string
+          id?: string
+          phone?: string
+          plate_number?: string
+          rating?: number | null
+          status?: string
+          total_deliveries?: number
+          updated_at?: string
+          user_id?: string | null
+          vehicle_type?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role:
+        | "super_admin"
+        | "admin"
+        | "finance"
+        | "support"
+        | "rider"
+        | "customer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +412,15 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: [
+        "super_admin",
+        "admin",
+        "finance",
+        "support",
+        "rider",
+        "customer",
+      ],
+    },
   },
 } as const
