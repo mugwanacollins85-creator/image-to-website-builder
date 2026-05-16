@@ -323,7 +323,7 @@ function BookPage() {
               {paymentMethod === "mpesa" && (
                 <div className="space-y-3">
                   <Field icon={Smartphone} label="M-Pesa phone number" value={mpesaPhone} onChange={setMpesaPhone} placeholder="+254 7XX XXX XXX" />
-                  <p className="text-xs text-muted-foreground">You'll receive an STK push on your phone. Enter your M-Pesa PIN to confirm. <span className="italic">(Demo mode — payment will simulate as paid.)</span></p>
+                  <p className="text-xs text-muted-foreground">You'll receive an STK push on your phone. Enter your M-Pesa PIN to confirm. Payment status updates automatically once Safaricom replies.</p>
                 </div>
               )}
               {paymentMethod === "card" && <p className="text-sm text-muted-foreground">Card payment via Flutterwave coming soon. Demo mode marks as paid.</p>}
