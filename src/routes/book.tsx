@@ -338,28 +338,12 @@ function BookPage() {
           )}
 
           {step === 5 && confirmed && (
-            <div className="text-center py-8">
-              <div className="mx-auto h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                <CheckCircle2 className="h-12 w-12 text-primary" />
-              </div>
-              <h2 className="text-3xl font-bold mb-2">Booking confirmed!</h2>
-              <p className="text-muted-foreground mb-6">A rider will be assigned in approximately 2 minutes.</p>
-              <div className="inline-flex items-center gap-2 px-4 py-3 rounded-lg bg-muted font-mono text-lg">
-                {confirmed.tracking}
-                <button onClick={() => navigator.clipboard.writeText(confirmed.tracking)} className="text-muted-foreground hover:text-foreground">
-                  <Copy className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                <Link to="/track/$trackingId" params={{ trackingId: confirmed.tracking }}
-                  className="h-11 inline-flex items-center px-5 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90">
-                  Track delivery <ArrowRight className="ml-1 h-4 w-4" />
-                </Link>
-                <Link to="/dashboard" className="h-11 inline-flex items-center px-5 rounded-md border font-medium">
-                  My bookings
-                </Link>
-              </div>
-            </div>
+            <ConfirmationPanel
+              bookingId={confirmed.id}
+              tracking={confirmed.tracking}
+              paymentMethod={paymentMethod}
+              mpesaPhone={mpesaPhone}
+            />
           )}
 
           {step < 5 && (
