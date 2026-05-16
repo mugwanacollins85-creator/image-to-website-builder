@@ -67,9 +67,13 @@ export type Database = {
           dropoff_lng: number | null
           fragile: boolean
           id: string
+          last_payment_attempt_at: string | null
+          mpesa_checkout_id: string | null
+          mpesa_receipt: string | null
           otp: string | null
           package_description: string | null
           package_weight_kg: number | null
+          payment_attempts: number
           payment_method: string
           payment_status: string
           pickup_address: string
@@ -103,9 +107,13 @@ export type Database = {
           dropoff_lng?: number | null
           fragile?: boolean
           id?: string
+          last_payment_attempt_at?: string | null
+          mpesa_checkout_id?: string | null
+          mpesa_receipt?: string | null
           otp?: string | null
           package_description?: string | null
           package_weight_kg?: number | null
+          payment_attempts?: number
           payment_method?: string
           payment_status?: string
           pickup_address: string
@@ -139,9 +147,13 @@ export type Database = {
           dropoff_lng?: number | null
           fragile?: boolean
           id?: string
+          last_payment_attempt_at?: string | null
+          mpesa_checkout_id?: string | null
+          mpesa_receipt?: string | null
           otp?: string | null
           package_description?: string | null
           package_weight_kg?: number | null
+          payment_attempts?: number
           payment_method?: string
           payment_status?: string
           pickup_address?: string

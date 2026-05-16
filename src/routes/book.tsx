@@ -1,12 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { initiateMpesaPayment, sendBookingSms } from "@/lib/payments.functions";
 import { quote, haversineKm, generateTrackingNumber, generateOTP, VEHICLES, type Vehicle, type Urgency } from "@/lib/pricing";
 import logo from "@/assets/logo.png";
-import { ArrowLeft, ArrowRight, CheckCircle2, MapPin, Package as PkgIcon, Bike, Truck, Zap, Shield, Bell, Smartphone, Copy } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, MapPin, Package as PkgIcon, Bike, Truck, Zap, Shield, Bell, Smartphone, Copy, XCircle, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/book")({
   head: () => ({ meta: [{ title: "Book a Delivery · SwiftLink" }] }),
@@ -142,10 +142,13 @@ function BookPage() {
         await supabase.from("bookings").update({ payment_status: "paid", status: "confirmed" }).eq("id", data.id);
       }
 
-      // Fire-and-forget confirmation SMS
-      sendSms({ data: { bookingId: data.id, event: "confirmed" } }).catch((e) =>
-        console.warn("SMS confirmation failed", e)
-      );
+      // For non-M-Pesa payments, fire the "confirmed" SMS immediately.
+      // For M-Pesa, the callback sends it once Safaricom confirms the payment.
+      if (paymentMethod !== "mpesa") {
+        sendSms({ data: { bookingId: data.id, event: "confirmed" } }).catch((e) =>
+          console.warn("SMS confirmation failed", e)
+        );
+      }
 
       setConfirmed({ tracking: data.tracking_number, id: data.id });
       setStep(5);
@@ -335,28 +338,12 @@ function BookPage() {
           )}
 
           {step === 5 && confirmed && (
-            <div className="text-center py-8">
-              <div className="mx-auto h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                <CheckCircle2 className="h-12 w-12 text-primary" />
-              </div>
-              <h2 className="text-3xl font-bold mb-2">Booking confirmed!</h2>
-              <p className="text-muted-foreground mb-6">A rider will be assigned in approximately 2 minutes.</p>
-              <div className="inline-flex items-center gap-2 px-4 py-3 rounded-lg bg-muted font-mono text-lg">
-                {confirmed.tracking}
-                <button onClick={() => navigator.clipboard.writeText(confirmed.tracking)} className="text-muted-foreground hover:text-foreground">
-                  <Copy className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                <Link to="/track/$trackingId" params={{ trackingId: confirmed.tracking }}
-                  className="h-11 inline-flex items-center px-5 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90">
-                  Track delivery <ArrowRight className="ml-1 h-4 w-4" />
-                </Link>
-                <Link to="/dashboard" className="h-11 inline-flex items-center px-5 rounded-md border font-medium">
-                  My bookings
-                </Link>
-              </div>
-            </div>
+            <ConfirmationPanel
+              bookingId={confirmed.id}
+              tracking={confirmed.tracking}
+              paymentMethod={paymentMethod}
+              mpesaPhone={mpesaPhone}
+            />
           )}
 
           {step < 5 && (
@@ -413,6 +400,198 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
     <div className={`flex justify-between ${bold ? "text-base font-bold" : ""}`}>
       <span className="text-muted-foreground">{label}</span>
       <span>{value}</span>
+    </div>
+  );
+}
+
+type PayStatus = "pending" | "processing" | "paid" | "failed";
+
+function ConfirmationPanel({
+  bookingId,
+  tracking,
+  paymentMethod,
+  mpesaPhone,
+}: {
+  bookingId: string;
+  tracking: string;
+  paymentMethod: "mpesa" | "card" | "wallet" | "cod";
+  mpesaPhone: string;
+}) {
+  const initiateMpesa = useServerFn(initiateMpesaPayment);
+  const [paymentStatus, setPaymentStatus] = useState<PayStatus>(
+    paymentMethod === "mpesa" ? "processing" : paymentMethod === "cod" ? "pending" : "paid"
+  );
+  const [bookingStatus, setBookingStatus] = useState<string>("pending");
+  const [mpesaReceipt, setMpesaReceipt] = useState<string | null>(null);
+  const [events, setEvents] = useState<{ status: string; note: string | null; created_at: string }[]>([]);
+  const [retrying, setRetrying] = useState(false);
+  const [retryErr, setRetryErr] = useState("");
+
+  // Initial fetch + realtime subscriptions for the booking row & timeline events.
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      const { data: b } = await supabase
+        .from("bookings")
+        .select("status, payment_status, mpesa_receipt")
+        .eq("id", bookingId)
+        .maybeSingle();
+      if (!alive || !b) return;
+      setPaymentStatus((b.payment_status as PayStatus) ?? "pending");
+      setBookingStatus(b.status ?? "pending");
+      setMpesaReceipt(b.mpesa_receipt ?? null);
+
+      const { data: ev } = await supabase
+        .from("booking_events")
+        .select("status, note, created_at")
+        .eq("booking_id", bookingId)
+        .order("created_at", { ascending: true });
+      if (alive && ev) setEvents(ev);
+    })();
+
+    const bookingChan = supabase
+      .channel(`booking:${bookingId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "bookings", filter: `id=eq.${bookingId}` },
+        (payload) => {
+          const row = payload.new as any;
+          setPaymentStatus((row.payment_status as PayStatus) ?? "pending");
+          setBookingStatus(row.status ?? "pending");
+          setMpesaReceipt(row.mpesa_receipt ?? null);
+        }
+      )
+      .subscribe();
+
+    const eventsChan = supabase
+      .channel(`booking-events:${bookingId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "booking_events", filter: `booking_id=eq.${bookingId}` },
+        (payload) => {
+          const row = payload.new as any;
+          setEvents((prev) => [...prev, { status: row.status, note: row.note, created_at: row.created_at }]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      alive = false;
+      supabase.removeChannel(bookingChan);
+      supabase.removeChannel(eventsChan);
+    };
+  }, [bookingId]);
+
+  async function retry() {
+    setRetrying(true);
+    setRetryErr("");
+    try {
+      await initiateMpesa({ data: { bookingId, phone: mpesaPhone } });
+      setPaymentStatus("processing");
+    } catch (e: any) {
+      setRetryErr(e?.message ?? "Retry failed");
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  const isMpesa = paymentMethod === "mpesa";
+  const showRetry = isMpesa && (paymentStatus === "failed" || paymentStatus === "processing");
+
+  return (
+    <div className="py-2">
+      <div className="text-center">
+        <div className={`mx-auto h-20 w-20 rounded-full flex items-center justify-center mb-4 ${
+          paymentStatus === "paid" ? "bg-primary/10" :
+          paymentStatus === "failed" ? "bg-destructive/10" : "bg-muted"
+        }`}>
+          {paymentStatus === "paid" && <CheckCircle2 className="h-12 w-12 text-primary" />}
+          {paymentStatus === "failed" && <XCircle className="h-12 w-12 text-destructive" />}
+          {(paymentStatus === "processing" || paymentStatus === "pending") && (
+            <Loader2 className="h-10 w-10 text-muted-foreground animate-spin" />
+          )}
+        </div>
+        <h2 className="text-3xl font-bold mb-2">
+          {paymentStatus === "paid" && "Booking confirmed!"}
+          {paymentStatus === "processing" && "Waiting for M-Pesa…"}
+          {paymentStatus === "pending" && "Booking placed"}
+          {paymentStatus === "failed" && "Payment failed"}
+        </h2>
+        <p className="text-muted-foreground mb-4">
+          {paymentStatus === "paid" && "A rider will be assigned shortly."}
+          {paymentStatus === "processing" && `Enter your M-Pesa PIN on ${mpesaPhone} to confirm.`}
+          {paymentStatus === "pending" && "Pay the rider in cash on delivery."}
+          {paymentStatus === "failed" && "We couldn't complete the M-Pesa charge. You can retry below."}
+        </p>
+        <div className="inline-flex items-center gap-2 px-4 py-3 rounded-lg bg-muted font-mono text-lg">
+          {tracking}
+          <button onClick={() => navigator.clipboard.writeText(tracking)} className="text-muted-foreground hover:text-foreground">
+            <Copy className="h-4 w-4" />
+          </button>
+        </div>
+        {mpesaReceipt && (
+          <div className="mt-3 text-xs text-muted-foreground">M-Pesa receipt: <span className="font-mono">{mpesaReceipt}</span></div>
+        )}
+      </div>
+
+      {/* Payment status pill */}
+      <div className="mt-6 flex justify-center">
+        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+          paymentStatus === "paid" ? "bg-primary/10 text-primary" :
+          paymentStatus === "failed" ? "bg-destructive/10 text-destructive" :
+          paymentStatus === "processing" ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"
+        }`}>
+          Payment: {paymentStatus} · Status: {bookingStatus}
+        </span>
+      </div>
+
+      {/* Live timeline */}
+      {events.length > 0 && (
+        <div className="mt-6 border rounded-xl p-4">
+          <div className="text-xs font-semibold uppercase text-muted-foreground mb-3">Live timeline</div>
+          <ol className="space-y-3">
+            {events.map((e, i) => (
+              <li key={i} className="flex gap-3 text-sm">
+                <div className="mt-1 h-2 w-2 rounded-full bg-primary shrink-0" />
+                <div className="flex-1">
+                  <div className="font-medium capitalize">{e.status.replace(/_/g, " ")}</div>
+                  {e.note && <div className="text-xs text-muted-foreground">{e.note}</div>}
+                </div>
+                <div className="text-xs text-muted-foreground whitespace-nowrap">
+                  {new Date(e.created_at).toLocaleTimeString()}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        {showRetry && (
+          <button
+            onClick={retry}
+            disabled={retrying}
+            className="h-11 inline-flex items-center gap-2 px-5 rounded-md border-2 border-primary text-primary font-medium hover:bg-primary/5 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${retrying ? "animate-spin" : ""}`} />
+            {retrying ? "Sending STK push…" : "Retry M-Pesa payment"}
+          </button>
+        )}
+        <Link
+          to="/track/$trackingId"
+          params={{ trackingId: tracking }}
+          className="h-11 inline-flex items-center px-5 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90"
+        >
+          Track delivery <ArrowRight className="ml-1 h-4 w-4" />
+        </Link>
+        <Link to="/dashboard" className="h-11 inline-flex items-center px-5 rounded-md border font-medium">
+          My bookings
+        </Link>
+      </div>
+
+      {retryErr && <p className="mt-3 text-center text-sm text-destructive">{retryErr}</p>}
     </div>
   );
 }
