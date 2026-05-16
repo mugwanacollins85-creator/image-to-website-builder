@@ -1,7 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { initiateMpesaPayment, sendBookingSms } from "@/lib/payments.functions";
 import { quote, haversineKm, generateTrackingNumber, generateOTP, VEHICLES, type Vehicle, type Urgency } from "@/lib/pricing";
 import logo from "@/assets/logo.png";
 import { ArrowLeft, ArrowRight, CheckCircle2, MapPin, Package as PkgIcon, Bike, Truck, Zap, Shield, Bell, Smartphone, Copy } from "lucide-react";
@@ -52,6 +54,8 @@ type Step = 1 | 2 | 3 | 4 | 5;
 function BookPage() {
   const { user } = useAuth();
   const nav = useNavigate();
+  const initiateMpesa = useServerFn(initiateMpesaPayment);
+  const sendSms = useServerFn(sendBookingSms);
   const [step, setStep] = useState<Step>(1);
 
   const [service, setService] = useState("parcel");
