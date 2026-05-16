@@ -1,7 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { initiateMpesaPayment, sendBookingSms } from "@/lib/payments.functions";
 import { quote, haversineKm, generateTrackingNumber, generateOTP, VEHICLES, type Vehicle, type Urgency } from "@/lib/pricing";
 import logo from "@/assets/logo.png";
 import { ArrowLeft, ArrowRight, CheckCircle2, MapPin, Package as PkgIcon, Bike, Truck, Zap, Shield, Bell, Smartphone, Copy } from "lucide-react";
@@ -52,6 +54,8 @@ type Step = 1 | 2 | 3 | 4 | 5;
 function BookPage() {
   const { user } = useAuth();
   const nav = useNavigate();
+  const initiateMpesa = useServerFn(initiateMpesaPayment);
+  const sendSms = useServerFn(sendBookingSms);
   const [step, setStep] = useState<Step>(1);
 
   const [service, setService] = useState("parcel");
@@ -119,13 +123,30 @@ function BookPage() {
         total_price: q.total,
         status: "pending",
         payment_method: paymentMethod,
-        payment_status: paymentMethod === "cod" ? "pending" : "paid", // demo: simulate immediate confirm for non-COD
+        payment_status: "pending",
         otp: generateOTP(),
       }).select("id, tracking_number").single();
       if (error) throw error;
       await supabase.from("booking_events").insert({
         booking_id: data.id, status: "pending", note: "Order placed",
       });
+
+      // Trigger M-Pesa STK push for mpesa payments. Other methods are marked paid for demo.
+      if (paymentMethod === "mpesa") {
+        try {
+          await initiateMpesa({ data: { bookingId: data.id, phone: mpesaPhone } });
+        } catch (e: any) {
+          setErr(`Booking created but M-Pesa request failed: ${e.message ?? e}`);
+        }
+      } else if (paymentMethod !== "cod") {
+        await supabase.from("bookings").update({ payment_status: "paid", status: "confirmed" }).eq("id", data.id);
+      }
+
+      // Fire-and-forget confirmation SMS
+      sendSms({ data: { bookingId: data.id, event: "confirmed" } }).catch((e) =>
+        console.warn("SMS confirmation failed", e)
+      );
+
       setConfirmed({ tracking: data.tracking_number, id: data.id });
       setStep(5);
     } catch (e: any) {
@@ -302,7 +323,7 @@ function BookPage() {
               {paymentMethod === "mpesa" && (
                 <div className="space-y-3">
                   <Field icon={Smartphone} label="M-Pesa phone number" value={mpesaPhone} onChange={setMpesaPhone} placeholder="+254 7XX XXX XXX" />
-                  <p className="text-xs text-muted-foreground">You'll receive an STK push on your phone. Enter your M-Pesa PIN to confirm. <span className="italic">(Demo mode — payment will simulate as paid.)</span></p>
+                  <p className="text-xs text-muted-foreground">You'll receive an STK push on your phone. Enter your M-Pesa PIN to confirm. Payment status updates automatically once Safaricom replies.</p>
                 </div>
               )}
               {paymentMethod === "card" && <p className="text-sm text-muted-foreground">Card payment via Flutterwave coming soon. Demo mode marks as paid.</p>}
