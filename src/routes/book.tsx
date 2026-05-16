@@ -1,12 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { initiateMpesaPayment, sendBookingSms } from "@/lib/payments.functions";
 import { quote, haversineKm, generateTrackingNumber, generateOTP, VEHICLES, type Vehicle, type Urgency } from "@/lib/pricing";
 import logo from "@/assets/logo.png";
-import { ArrowLeft, ArrowRight, CheckCircle2, MapPin, Package as PkgIcon, Bike, Truck, Zap, Shield, Bell, Smartphone, Copy } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, MapPin, Package as PkgIcon, Bike, Truck, Zap, Shield, Bell, Smartphone, Copy, XCircle, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/book")({
   head: () => ({ meta: [{ title: "Book a Delivery · SwiftLink" }] }),
