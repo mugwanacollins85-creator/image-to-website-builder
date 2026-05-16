@@ -123,13 +123,30 @@ function BookPage() {
         total_price: q.total,
         status: "pending",
         payment_method: paymentMethod,
-        payment_status: paymentMethod === "cod" ? "pending" : "paid", // demo: simulate immediate confirm for non-COD
+        payment_status: "pending",
         otp: generateOTP(),
       }).select("id, tracking_number").single();
       if (error) throw error;
       await supabase.from("booking_events").insert({
         booking_id: data.id, status: "pending", note: "Order placed",
       });
+
+      // Trigger M-Pesa STK push for mpesa payments. Other methods are marked paid for demo.
+      if (paymentMethod === "mpesa") {
+        try {
+          await initiateMpesa({ data: { bookingId: data.id, phone: mpesaPhone } });
+        } catch (e: any) {
+          setErr(`Booking created but M-Pesa request failed: ${e.message ?? e}`);
+        }
+      } else if (paymentMethod !== "cod") {
+        await supabase.from("bookings").update({ payment_status: "paid", status: "confirmed" }).eq("id", data.id);
+      }
+
+      // Fire-and-forget confirmation SMS
+      sendSms({ data: { bookingId: data.id, event: "confirmed" } }).catch((e) =>
+        console.warn("SMS confirmation failed", e)
+      );
+
       setConfirmed({ tracking: data.tracking_number, id: data.id });
       setStep(5);
     } catch (e: any) {
