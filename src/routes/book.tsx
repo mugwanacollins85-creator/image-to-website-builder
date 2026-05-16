@@ -142,10 +142,13 @@ function BookPage() {
         await supabase.from("bookings").update({ payment_status: "paid", status: "confirmed" }).eq("id", data.id);
       }
 
-      // Fire-and-forget confirmation SMS
-      sendSms({ data: { bookingId: data.id, event: "confirmed" } }).catch((e) =>
-        console.warn("SMS confirmation failed", e)
-      );
+      // For non-M-Pesa payments, fire the "confirmed" SMS immediately.
+      // For M-Pesa, the callback sends it once Safaricom confirms the payment.
+      if (paymentMethod !== "mpesa") {
+        sendSms({ data: { bookingId: data.id, event: "confirmed" } }).catch((e) =>
+          console.warn("SMS confirmation failed", e)
+        );
+      }
 
       setConfirmed({ tracking: data.tracking_number, id: data.id });
       setStep(5);
